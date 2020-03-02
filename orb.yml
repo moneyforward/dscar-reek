@@ -1,0 +1,103 @@
+version: 2.1
+
+description: Delta Reek reports
+orbs:
+  dscar: naokikimura/dscar@0.1.0
+commands:
+  execute:
+    description: Calculate the difference of Reek results between HEAD branch and BASE branch
+    parameters:
+      starting-points:
+        description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
+        type: string
+        default: "."
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
+    steps:
+      - dscar/execute:
+          prepare-to-execute:
+            - run:
+                name: Install Reek
+                command: |
+                  sudo gem install reek
+                  sudo apt-get install xmlstarlet
+
+                  mkdir -p /tmp/reek
+                  cat \<<-EOT > /tmp/reek/reek-checkstyle-to-junit.xsl
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+                    <xsl:output encoding="UTF-8" method="xml"></xsl:output>
+
+                    <xsl:template match="/">
+                      <testsuites>
+                        <xsl:for-each select="//checkstyle">
+                          <xsl:apply-templates />
+                        </xsl:for-each>
+                      </testsuites>
+                    </xsl:template>
+
+                    <xsl:template match="file">
+                      <testsuite id="#{generate-id(.)}" package="reek" timestamp="`date '+%Y-%m-%dT%H:%M:%S'`" hostname="`hostname`" tests="1" failures="1" errors="0" time="0">
+                        <xsl:attribute name="name">
+                          <xsl:value-of select="@name" />
+                        </xsl:attribute>
+                        <properties />
+                        <system-out />
+                        <system-err />
+                        <xsl:apply-templates select="node()" />
+                      </testsuite>
+                    </xsl:template>
+
+                    <xsl:template match="error">
+                      <testcase name="run" time="0">
+                        <xsl:attribute name="classname">
+                          <xsl:text>Reek::SmellDetectors::</xsl:text>
+                          <xsl:value-of select="@source" />
+                        </xsl:attribute>
+                        <failure>
+                          <xsl:attribute name="type">
+                            <xsl:value-of select="@source" />
+                          </xsl:attribute>
+                          <xsl:text>[</xsl:text>
+                          <xsl:value-of select="@severity" />
+                          <xsl:text>] </xsl:text>
+                          <xsl:text>Line </xsl:text>
+                          <xsl:value-of select="@line" />
+                          <xsl:text>: </xsl:text>
+                          <xsl:value-of select="@message" />
+                        </failure>
+                      </testcase>
+                    </xsl:template>
+                  </xsl:stylesheet>
+                  EOT
+          analysis-name: Reek
+          analysis-command: reek
+          analysis-arguments: -f xml
+          analysis-result-transformation-command: xmlstarlet
+          analysis-result-transformation-arguments: tr /tmp/reek/reek-checkstyle-to-junit.xsl
+          calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
+          should-save-analysis-results-as-artifacts: true
+          redirecting-output: /dev/null
+          starting-points: << parameters.starting-points >>
+          test-results-path: << parameters.test-results-path >>
+jobs:
+  execute:
+    description: Calculate the difference of Reek results between HEAD branch and BASE branch
+    parameters:
+      starting-points:
+        description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
+        type: string
+        default: "."
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
+    executor:
+      name: dscar/default
+      docker-image: circleci/ruby
+    steps:
+      - execute:
+          starting-points: << parameters.starting-points >>
+          test-results-path: << parameters.test-results-path >>
