@@ -1,27 +1,50 @@
 version: 2.1
 
 description: Delta Reek reports
+
 orbs:
-  dscar: naokikimura/dscar@0.1.0
+  dscar: naokikimura/dscar@0.5.0
+
+executors:
+  default:
+    description: Default Reek execution environment
+    parameters:
+      docker-image:
+        description: Specify the image used to execute Reek
+        type: string
+        default: circleci/ruby:latest-node
+    docker:
+      - image: << parameters.docker-image >>
+
 commands:
-  execute:
-    description: Calculate the difference of Reek results between HEAD branch and BASE branch
+  analyze:
+    description: Analyze code statically using Reek
     parameters:
       starting-points:
         description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
         type: string
         default: "."
-      test-results-path:
-        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+      no-analysis-output-timeout:
+        description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
         type: string
-        default: "/tmp/test-results"
+        default: 10m
+      prepare:
+        description: Specify the required steps before analysis if necessary
+        type: steps
+        default:
+          - run: sudo gem install reek
+      redirecting-output:
+        description: Specify "/dev/null" if you do not want to display the analysis results on the standard output
+        type: enum
+        enum: ["/dev/stdout", "/dev/stderr", "/dev/null"]
+        default: "/dev/null"
     steps:
-      - dscar/execute:
-          prepare-to-execute:
+      - dscar/analyze:
+          step-name: Analyze code statically using Reek
+          prepare:
             - run:
-                name: Install Reek
+                name: Setup XSLT
                 command: |
-                  sudo gem install reek
                   sudo apt-get install xmlstarlet
 
                   mkdir -p /tmp/reek
@@ -72,32 +95,162 @@ commands:
                     </xsl:template>
                   </xsl:stylesheet>
                   EOT
-          analysis-name: Reek
+            - steps: << parameters.prepare >>
           analysis-command: reek
           analysis-arguments: -f xml
-          analysis-result-transformation-command: xmlstarlet
-          analysis-result-transformation-arguments: tr /tmp/reek/reek-checkstyle-to-junit.xsl
-          calculate-options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
-          should-save-analysis-results-as-artifacts: true
-          redirecting-output: /dev/null
+          transformation-command: xmlstarlet
+          transformation-arguments: tr /tmp/reek/reek-checkstyle-to-junit.xsl
           starting-points: << parameters.starting-points >>
-          test-results-path: << parameters.test-results-path >>
-jobs:
+          no-output-timeout: << parameters.no-analysis-output-timeout >>
+          redirecting-output: << parameters.redirecting-output >>
+  calculate:
+    description: |
+      Calculate the difference between the analysis results
+
+      Use the [junit-reports-combiner][1] command to calculate the difference
+
+      [1]: https://www.npmjs.com/package/junit-reports-combiner
+    parameters:
+      first-result-path:
+        description: Path of the file to use as the minuend
+        type: string
+        default: "HEAD-analysis-results.xml"
+      second-result-path:
+        description: Path of the file to use as the subtrahend
+        type: string
+        default: "BASE-analysis-results.xml"
+      delta-result-path:
+        description: Path to save difference of analysis results
+        type: string
+        default: "/dev/null"
+      should-install-node_js:
+        description: Specify true if the execution environment does not have Node.js installed
+        type: boolean
+        default: false
+    steps:
+      - dscar/calculate:
+          options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
+          first-result-path: << parameters.first-result-path >>
+          second-result-path: << parameters.second-result-path >>
+          delta-result-path: << parameters.delta-result-path >>
+          should-install-node_js: << parameters.should-install-node_js >>
   execute:
     description: Calculate the difference of Reek results between HEAD branch and BASE branch
     parameters:
-      starting-points:
-        description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
-        type: string
-        default: "."
+      analyze:
+        description: Specify analysis steps
+        type: steps
+        default:
+          - analyze:
+              prepare: []
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
       test-results-path:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
-    executor:
-      name: dscar/default
-      docker-image: circleci/ruby
+    steps:
+      - run: sudo gem install reek
+      - dscar/execute:
+          analysis-name: Reek
+          analyze: << parameters.analyze >>
+          calculate: << parameters.calculate >>
+          test-results-path: << parameters.test-results-path >>
+
+jobs:
+  analyze:
+    description: Analyze code statically using Reek
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      is-target-branch-base:
+        description: Check-out the BASE branch if true is specified
+        type: boolean
+        default: false
+      analyze:
+        description: Specify analysis steps
+        type: steps
+        default:
+          - analyze
+      analysis-results-path:
+        description: Specify the path to save the analysis results if you need to change it
+        type: string
+        default: "/tmp/analysis-results"
+    executor: << parameters.executor >>
+    steps:
+      - dscar/set-analysis-result-path:
+          analysis-name: Reek
+          analysis-results-path: << parameters.analysis-results-path >>
+          is-target-branch-base: << parameters.is-target-branch-base >>
+      - dscar/checkout-analysis-target:
+          is-target-branch-base: << parameters.is-target-branch-base >>
+      - steps: << parameters.analyze >>
+      - store_test_results:
+          path: << parameters.analysis-results-path >>
+  calculate:
+    description: |
+      Calculate the difference between the analysis results
+
+      Use the [junit-reports-combiner][1] command to calculate the difference
+
+      [1]: https://www.npmjs.com/package/junit-reports-combiner
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
+      analysis-results-path:
+        description: Specify the path to save the analysis results if you need to change it
+        type: string
+        default: "/tmp/analysis-results"
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
+    executor: << parameters.executor >>
+    steps:
+      - dscar/set-result-paths:
+          analysis-name: Reek
+          analysis-results-path: << parameters.analysis-results-path >>
+          test-results-path: << parameters.test-results-path >>
+      - steps: << parameters.calculate >>
+      - store_test_results:
+          path: << parameters.test-results-path >>
+  execute:
+    description: Calculate the difference of Reek results between HEAD branch and BASE branch
+    parameters:
+      executor:
+        description: Specify the image used to execute analysis
+        type: executor
+        default: default
+      analyze:
+        description: Specify analysis steps
+        type: steps
+        default:
+          - analyze:
+              prepare: []
+      calculate:
+        description: Specify the steps for calculating the difference
+        type: steps
+        default:
+          - calculate
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
+    executor: << parameters.executor >>
     steps:
       - execute:
-          starting-points: << parameters.starting-points >>
+          analyze: << parameters.analyze >>
+          calculate: << parameters.calculate >>
           test-results-path: << parameters.test-results-path >>
