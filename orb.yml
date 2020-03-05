@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Reek reports
 
 orbs:
-  dscar: naokikimura/dscar@0.5.0
+  dscar: naokikimura/dscar@0.5.1
 
 executors:
   default:
@@ -13,8 +13,13 @@ executors:
         description: Specify the image used to execute Reek
         type: string
         default: circleci/ruby:latest-node
+      resource_class:
+        description: Amount of CPU and RAM allocated to each container in a job.
+        type: string
+        default: small
     docker:
       - image: << parameters.docker-image >>
+    resource_class: << parameters.resource_class >>
 
 commands:
   analyze:
