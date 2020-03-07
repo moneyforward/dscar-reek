@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Reek reports
 
 orbs:
-  dscar: naokikimura/dscar@0.5.4
+  dscar: naokikimura/dscar@0.6.1
 
 executors:
   default:
@@ -46,99 +46,12 @@ commands:
     steps:
       - dscar/analyze:
           step-name: Analyze code statically using Reek
-          prepare:
-            - run:
-                name: Setup XSLT
-                command: |
-                  sudo apt-get install xmlstarlet
-
-                  mkdir -p /tmp/reek
-                  cat \<<-EOT > /tmp/reek/reek-checkstyle-to-junit.xsl
-                  <?xml version="1.0" encoding="UTF-8"?>
-                  <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-                    <xsl:output encoding="UTF-8" method="xml"></xsl:output>
-
-                    <xsl:template match="/">
-                      <testsuites>
-                        <xsl:for-each select="//checkstyle">
-                          <xsl:apply-templates />
-                        </xsl:for-each>
-                      </testsuites>
-                    </xsl:template>
-
-                    <xsl:template match="file">
-                      <testsuite id="#{generate-id(.)}" package="reek" timestamp="`date '+%Y-%m-%dT%H:%M:%S'`" hostname="`hostname`" tests="1" failures="1" errors="0" time="0">
-                        <xsl:attribute name="name">
-                          <xsl:value-of select="@name" />
-                        </xsl:attribute>
-                        <properties />
-                        <system-out />
-                        <system-err />
-                        <xsl:apply-templates select="node()" />
-                      </testsuite>
-                    </xsl:template>
-
-                    <xsl:template match="error">
-                      <testcase name="run" time="0">
-                        <xsl:attribute name="classname">
-                          <xsl:text>Reek::SmellDetectors::</xsl:text>
-                          <xsl:value-of select="@source" />
-                        </xsl:attribute>
-                        <failure>
-                          <xsl:attribute name="type">
-                            <xsl:value-of select="@source" />
-                          </xsl:attribute>
-                          <xsl:text>[</xsl:text>
-                          <xsl:value-of select="@severity" />
-                          <xsl:text>] </xsl:text>
-                          <xsl:text>Line </xsl:text>
-                          <xsl:value-of select="@line" />
-                          <xsl:text>: </xsl:text>
-                          <xsl:value-of select="@message" />
-                        </failure>
-                      </testcase>
-                    </xsl:template>
-                  </xsl:stylesheet>
-                  EOT
-            - steps: << parameters.prepare >>
+          prepare: << parameters.prepare >>
           analysis-command: reek
           analysis-arguments: -f xml
-          transformation-command: xmlstarlet
-          transformation-arguments: tr /tmp/reek/reek-checkstyle-to-junit.xsl
           starting-points: << parameters.starting-points >>
           no-output-timeout: << parameters.no-analysis-output-timeout >>
           redirecting-output: << parameters.redirecting-output >>
-  calculate:
-    description: |
-      Calculate the difference between the analysis results
-
-      Use the [junit-reports-combiner][1] command to calculate the difference
-
-      [1]: https://www.npmjs.com/package/junit-reports-combiner
-    parameters:
-      first-result-path:
-        description: Path of the file to use as the minuend
-        type: string
-        default: "HEAD-analysis-results.xml"
-      second-result-path:
-        description: Path of the file to use as the subtrahend
-        type: string
-        default: "BASE-analysis-results.xml"
-      delta-result-path:
-        description: Path to save difference of analysis results
-        type: string
-        default: "/dev/null"
-      should-install-node_js:
-        description: Specify true if the execution environment does not have Node.js installed
-        type: boolean
-        default: false
-    steps:
-      - dscar/calculate:
-          options: --test-case-key=concat(@classname,"#",@name,"=>",normalize-space())
-          first-result-path: << parameters.first-result-path >>
-          second-result-path: << parameters.second-result-path >>
-          delta-result-path: << parameters.delta-result-path >>
-          should-install-node_js: << parameters.should-install-node_js >>
   execute:
     description: Calculate the difference of Reek results between HEAD branch and BASE branch
     parameters:
@@ -164,17 +77,13 @@ commands:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
-      test-results-path:
-        description: Specify the value of the path parameter in the store_test_results step if you need to change it
-        type: string
-        default: "/tmp/test-results"
+          - dscar/calculate
       project-path:
         description: "Absolute path to your project's base directory, necessary for running git commands (default: job’s working_directory)"
         type: string
         default: ""
     steps:
-      - run: sudo gem install reek
+      - run: sudo gem install rubocop rubocop-performance rubocop-rails
       - dscar/execute:
           has-reconstructed: << parameters.has-reconstructed >>
           attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
@@ -182,7 +91,6 @@ commands:
           analyze: << parameters.analyze >>
           analysis-results-path: << parameters.analysis-results-path >>
           calculate: << parameters.calculate >>
-          test-results-path: << parameters.test-results-path >>
           project-path: << parameters.project-path >>
 
 jobs:
@@ -214,9 +122,13 @@ jobs:
         description: Specify the path to save the analysis results if you need to change it
         type: string
         default: "/tmp/analysis-results"
+      test-results-path:
+        description: Specify the value of the path parameter in the store_test_results step if you need to change it
+        type: string
+        default: "/tmp/test-results"
     executor: << parameters.executor >>
     steps:
-      - dscar/set-analysis-result-path:
+      - dscar/set-result-path:
           analysis-name: Reek
           analysis-results-path: << parameters.analysis-results-path >>
           is-target-branch-base: << parameters.is-target-branch-base >>
@@ -225,13 +137,20 @@ jobs:
           has-reconstructed: << parameters.has-reconstructed >>
           attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
       - steps: << parameters.analyze >>
-      - store_test_results:
-          path: << parameters.analysis-results-path >>
+      - when:
+          condition: << parameters.test-results-path >>
+          steps:
+            - dscar/transform:
+                analysis-name: Reek
+                analysis-results-path: << parameters.analysis-results-path >>
+                test-results-path: << parameters.test-results-path >>
+            - store_test_results:
+                path: << parameters.test-results-path >>
   calculate:
     description: |
       Calculate the difference between the analysis results
 
-      Use the [junit-reports-combiner][1] command to calculate the difference
+      Use the [checkstyle-reports-combiner][1] command to calculate the difference
 
       [1]: https://www.npmjs.com/package/junit-reports-combiner
     parameters:
@@ -243,7 +162,7 @@ jobs:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
+          - dscar/calculate
       analysis-results-path:
         description: Specify the path to save the analysis results if you need to change it
         type: string
@@ -254,15 +173,19 @@ jobs:
         default: "/tmp/test-results"
     executor: << parameters.executor >>
     steps:
-      - dscar/set-result-paths:
+      - dscar/set-analysis-result-paths:
+          analysis-name: Reek
+          analysis-results-path: << parameters.analysis-results-path >>
+      - steps: << parameters.calculate >>
+      - dscar/transform:
           analysis-name: Reek
           analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
-      - steps: << parameters.calculate >>
+          pattern: '.*/DELTA-analysis-results\.xml$'
       - store_test_results:
           path: << parameters.test-results-path >>
   execute:
-    description: Calculate the difference of Brakeman results between HEAD branch and BASE branch
+    description: Calculate the difference of Reek results between HEAD branch and BASE branch
     parameters:
       executor:
         description: Specify the image used to execute analysis
@@ -290,15 +213,11 @@ jobs:
         description: Specify the steps for calculating the difference
         type: steps
         default:
-          - calculate
+          - dscar/calculate
       test-results-path:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
-      should-save-analysis-results-as-artifacts:
-        description: Specify true if analysis results should be saved as artifacts
-        type: boolean
-        default: false
     executor: << parameters.executor >>
     steps:
       - execute:
@@ -307,11 +226,10 @@ jobs:
           analyze: << parameters.analyze >>
           analysis-results-path: << parameters.analysis-results-path >>
           calculate: << parameters.calculate >>
+      - dscar/transform:
+          analysis-name: Reek
+          analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
+          pattern: '.*/DELTA-analysis-results\.xml$'
       - store_test_results:
           path: << parameters.test-results-path >>
-      - when:
-          condition: << parameters.should-save-analysis-results-as-artifacts >>
-          steps:
-            - store_artifacts:
-                path: << parameters.analysis-results-path >>
