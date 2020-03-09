@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Reek reports
 
 orbs:
-  dscar: naokikimura/dscar@0.6.2
+  dscar: naokikimura/dscar@0.7.0
 
 executors:
   default:
@@ -52,50 +52,10 @@ commands:
           starting-points: << parameters.starting-points >>
           no-output-timeout: << parameters.no-analysis-output-timeout >>
           redirecting-output: << parameters.redirecting-output >>
-  execute:
-    description: Calculate the difference of Reek results between HEAD branch and BASE branch
-    parameters:
-      has-reconstructed:
-        description: Specify true if `compare-url/reconstruct` has not been executed yet
-        type: boolean
-        default: false
-      attach-compare-url-workspace:
-        description: "Attach a workspace for this command to use? Useful when `compare-url` orb's `reconstruct` job is called upstream in a given workflow"
-        type: boolean
-        default: false
-      analyze:
-        description: Specify analysis steps
-        type: steps
-        default:
-          - analyze:
-              prepare: []
-      analysis-results-path:
-        description: Specify the path to save the analysis results if you need to change it
-        type: string
-        default: "/tmp/analysis-results"
-      calculate:
-        description: Specify the steps for calculating the difference
-        type: steps
-        default:
-          - dscar/calculate
-      project-path:
-        description: "Absolute path to your project's base directory, necessary for running git commands (default: job’s working_directory)"
-        type: string
-        default: ""
-    steps:
-      - run: sudo gem install rubocop rubocop-performance rubocop-rails
-      - dscar/execute:
-          has-reconstructed: << parameters.has-reconstructed >>
-          attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
-          analysis-name: Reek
-          analyze: << parameters.analyze >>
-          analysis-results-path: << parameters.analysis-results-path >>
-          calculate: << parameters.calculate >>
-          project-path: << parameters.project-path >>
 
 jobs:
   analyze:
-    description: Analyze code statically using Reek
+    description: Analyze code statically using Reek and then evaluate the result
     parameters:
       executor:
         description: Specify the image used to execute analysis
@@ -126,29 +86,24 @@ jobs:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
+      vcs-api-token:
+        description: Specify the environment variable name where the VCS (Version Control System) API token is set.
+        type: env_var_name
+        default: GITHUB_TOKEN
     executor: << parameters.executor >>
     steps:
-      - dscar/set-result-path:
-          analysis-name: Reek
-          analysis-results-path: << parameters.analysis-results-path >>
-          is-target-branch-base: << parameters.is-target-branch-base >>
-      - dscar/checkout-analysis-target:
+      - dscar/analyze-and-evaluate:
           is-target-branch-base: << parameters.is-target-branch-base >>
           has-reconstructed: << parameters.has-reconstructed >>
           attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
-      - steps: << parameters.analyze >>
-      - when:
-          condition: << parameters.test-results-path >>
-          steps:
-            - dscar/transform:
-                analysis-name: Reek
-                analysis-results-path: << parameters.analysis-results-path >>
-                test-results-path: << parameters.test-results-path >>
-            - store_test_results:
-                path: << parameters.test-results-path >>
+          analysis-name: Reek
+          analyze: << parameters.analyze >>
+          analysis-results-path: << parameters.analysis-results-path >>
+          test-results-path: << parameters.test-results-path >>
+          vcs-api-token: << parameters.vcs-api-token >>
   calculate:
     description: |
-      Calculate the difference between the analysis results
+      Calculate the difference between the analysis results and then evaluate the result
 
       Use the [checkstyle-reports-combiner][1] command to calculate the difference
 
@@ -171,21 +126,20 @@ jobs:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
+      vcs-api-token:
+        description: Specify the environment variable name where the VCS (Version Control System) API token is set.
+        type: env_var_name
+        default: GITHUB_TOKEN
     executor: << parameters.executor >>
     steps:
-      - dscar/set-analysis-result-paths:
+      - dscar/calculate-and-evaluate:
           analysis-name: Reek
-          analysis-results-path: << parameters.analysis-results-path >>
-      - steps: << parameters.calculate >>
-      - dscar/transform:
-          analysis-name: Reek
+          calculate: << parameters.calculate >>
           analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
-          pattern: '.*/DELTA-analysis-results\.xml$'
-      - store_test_results:
-          path: << parameters.test-results-path >>
+          vcs-api-token: << parameters.vcs-api-token >>
   execute:
-    description: Calculate the difference of Reek results between HEAD branch and BASE branch
+    description: Calculate the difference of Reek results between HEAD branch and BASE branch and then evaluate the result
     parameters:
       executor:
         description: Specify the image used to execute analysis
@@ -218,18 +172,19 @@ jobs:
         description: Specify the value of the path parameter in the store_test_results step if you need to change it
         type: string
         default: "/tmp/test-results"
+      vcs-api-token:
+        description: Specify the environment variable name where the VCS (Version Control System) API token is set.
+        type: env_var_name
+        default: GITHUB_TOKEN
     executor: << parameters.executor >>
     steps:
-      - execute:
+      - run: sudo gem install reek
+      - dscar/execute-and-evaluate:
           has-reconstructed: << parameters.has-reconstructed >>
           attach-compare-url-workspace: << parameters.attach-compare-url-workspace >>
+          analysis-name: Reek
           analyze: << parameters.analyze >>
           analysis-results-path: << parameters.analysis-results-path >>
           calculate: << parameters.calculate >>
-      - dscar/transform:
-          analysis-name: Reek
-          analysis-results-path: << parameters.analysis-results-path >>
           test-results-path: << parameters.test-results-path >>
-          pattern: '.*/DELTA-analysis-results\.xml$'
-      - store_test_results:
-          path: << parameters.test-results-path >>
+          vcs-api-token: << parameters.vcs-api-token >>
