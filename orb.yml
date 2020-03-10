@@ -3,7 +3,7 @@ version: 2.1
 description: Delta Reek reports
 
 orbs:
-  dscar: naokikimura/dscar@0.7.0
+  dscar: naokikimura/dscar@0.7.1
 
 executors:
   default:
