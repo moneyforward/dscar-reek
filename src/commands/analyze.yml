@@ -4,6 +4,15 @@ parameters:
     description: Specify the path of starting to search for files to analyze (Multiple paths can be specified by separating them with line feed)
     type: string
     default: "."
+  patterns-to-include:
+    description: Specify patterns to include by regular expression (Multiple patterns can be specified by separating them with line feed)
+    type: string
+    default: ".*"
+  patterns-to-exclude:
+    description: Specify patterns to exclude by regular expression (Multiple patterns can be specified by separating them with line feed)
+    type: string
+    default: |
+        ^\./\.git/.*
   no-analysis-output-timeout:
     description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
     type: string
@@ -13,6 +22,10 @@ parameters:
     type: steps
     default:
       - install-analyzer
+  result-path:
+    description: Path to save analysis result
+    type: string
+    default: "/dev/null"
   redirecting-output:
     description: Specify "/dev/null" if you do not want to display the analysis results on the standard output
     type: enum
@@ -21,9 +34,26 @@ parameters:
 steps:
   - dscar/analyze:
       step-name: Analyze code statically using Reek
-      prepare: << parameters.prepare >>
+      prepare:
+        - run: sudo apt-get install jq
+        - run:
+            name: export TRANSFORMATION_ARGUMENTS
+            command: |
+              set -x
+              cat \<<-"EOT" >> $BASH_ENV
+              export TRANSFORMATION_ARGUMENTS=(
+                -srM
+                'flatten | map(@html "<file name=\"\(.source)\">" + (.message as $message | .smell_type as $source | .lines | map(@html "<error source=\"\($source)\" message=\"\($message)\" line=\"\(.)\" column=\"0\" severity=\"warning\" />") | join("")) + "</file>") | "<checkstyle>\(join(""))</checkstyle>"'
+              )
+              EOT
+        - steps: << parameters.prepare >>
       analysis-command: reek
-      analysis-arguments: -f xml
+      analysis-arguments: -f json
+      transformation-command: jq
+      should-find: "true"
       starting-points: << parameters.starting-points >>
+      patterns-to-include: << parameters.patterns-to-include >>
+      patterns-to-exclude: << parameters.patterns-to-exclude >>
+      result-path: << parameters.result-path >>
       no-output-timeout: << parameters.no-analysis-output-timeout >>
       redirecting-output: << parameters.redirecting-output >>

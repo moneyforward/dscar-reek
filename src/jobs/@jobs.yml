@@ -5,6 +5,10 @@ analyze:
       description: Specify the image used to execute analysis
       type: executor
       default: default
+    parallelism:
+      description: If parallelism is set to N > 1, then N independent executors will be set up and each will run the steps of that job in parallel.
+      type: integer
+      default: 1
     resource_class:
       description: Amount of CPU and RAM allocated to each container in a job.
       type: string
@@ -35,6 +39,7 @@ analyze:
       type: string
       default: ""
   executor: << parameters.executor >>
+  parallelism: << parameters.parallelism >>
   resource_class: << parameters.resource_class >>
   steps:
     - dscar/analyze-and-evaluate:
@@ -85,6 +90,7 @@ execute:
       type: string
       default: ""
   executor: << parameters.executor >>
+  parallelism: 1
   resource_class: << parameters.resource_class >>
   steps:
     - install-analyzer
