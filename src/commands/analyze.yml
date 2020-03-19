@@ -13,6 +13,10 @@ parameters:
     type: string
     default: |
         ^\./\.git/.*
+  error-pattern:
+    description: Specify the pattern if you want to detect analyzing errors from the standard error
+    type: string
+    default: '.*'
   no-analysis-output-timeout:
     description: Elapsed time the command can run without output. The string is a decimal with unit suffix, such as “20m”, “1.25h”, “5s”
     type: string
@@ -53,6 +57,7 @@ steps:
         - steps: << parameters.prepare >>
       analysis-command: reek
       analysis-arguments: -f json
+      error-pattern: << parameters.error-pattern >>
       transformation-command: jq
       should-find: "true"
       starting-points: << parameters.starting-points >>
