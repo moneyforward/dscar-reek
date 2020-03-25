@@ -26,10 +26,10 @@ parameters:
     type: steps
     default:
       - install-analyzer
-  result-path:
-    description: Path to save analysis result
+  analysis-results-path:
+    description: "Specify the path to save the analysis results if you need to change it (default: /tmp/dscar/analysis-results)"
     type: string
-    default: "/dev/null"
+    default: ""
   redirecting-output:
     description: Specify "/dev/null" if you do not want to display the analysis results on the standard output
     type: enum
@@ -42,6 +42,7 @@ parameters:
 steps:
   - dscar/analyze:
       step-name: Analyze code statically using Reek
+      analysis-name: Reek
       prepare:
         - run: sudo apt-get install jq
         - run:
@@ -63,7 +64,7 @@ steps:
       starting-points: << parameters.starting-points >>
       patterns-to-include: << parameters.patterns-to-include >>
       patterns-to-exclude: << parameters.patterns-to-exclude >>
-      result-path: << parameters.result-path >>
+      analysis-results-path: << parameters.analysis-results-path >>
       no-output-timeout: << parameters.no-analysis-output-timeout >>
       redirecting-output: << parameters.redirecting-output >>
       max-procs: << parameters.max-procs >>

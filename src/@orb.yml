@@ -2,8 +2,12 @@ version: 2.1
 
 description: Delta Reek reports
 
+display:
+  home_url: https://github.com/naokikimura/dscar-reek
+  source_url: https://github.com/naokikimura/dscar-reek
+
 orbs:
-  dscar: naokikimura/dscar@0.8.5
+  dscar: naokikimura/dscar@0.9.0
 
 executors:
   default:
@@ -22,7 +26,12 @@ executors:
       git-revision:
         description: "Please set << pipeline.git-revision >>"
         type: string
+      analysis-results-path:
+        description: Specify the path to save the analysis results if you need to change it
+        type: string
+        default: "/tmp/dscar/analysis-results"
     docker:
       - image: << parameters.docker-image >>
     environment:
       CIRCLE_COMPARE_URL: << parameters.project-git_url >>/compare/<< parameters.git-base_revision >>..<< parameters.git-revision >>
+      DSCAR_ANALYSIS_RESULTS_PATH: << parameters.analysis-results-path >>

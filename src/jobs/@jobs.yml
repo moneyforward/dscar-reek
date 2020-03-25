@@ -22,10 +22,6 @@ analyze:
       type: steps
       default:
         - analyze
-    analysis-results-path:
-      description: Specify the path to save the analysis results if you need to change it
-      type: string
-      default: "/tmp/analysis-results"
     test-results-path:
       description: Specify the value of the path parameter in the store_test_results step if you need to change it
       type: string
@@ -44,9 +40,7 @@ analyze:
   steps:
     - dscar/analyze-and-evaluate:
         is-target-branch-base: << parameters.is-target-branch-base >>
-        analysis-name: &analysis-name Reek
         analyze: << parameters.analyze >>
-        analysis-results-path: << parameters.analysis-results-path >>
         test-results-path: << parameters.test-results-path >>
         vcs-api-token: << parameters.vcs-api-token >>
         circle_compare_url-path: << parameters.circle_compare_url-path >>
@@ -68,10 +62,6 @@ execute:
       default:
         - analyze:
             prepare: []
-    analysis-results-path:
-      description: Specify the path to save the analysis results if you need to change it
-      type: string
-      default: "/tmp/analysis-results"
     calculate:
       description: Specify the steps for calculating the difference
       type: steps
@@ -95,9 +85,7 @@ execute:
   steps:
     - install-analyzer
     - dscar/execute-and-evaluate:
-        analysis-name: *analysis-name
         analyze: << parameters.analyze >>
-        analysis-results-path: << parameters.analysis-results-path >>
         calculate: << parameters.calculate >>
         test-results-path: << parameters.test-results-path >>
         vcs-api-token: << parameters.vcs-api-token >>
