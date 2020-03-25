@@ -49,12 +49,15 @@ steps:
             name: export TRANSFORMATION_ARGUMENTS
             command: |
               set -x
-              cat \<<-"EOT" >> $BASH_ENV
-              export TRANSFORMATION_ARGUMENTS=(
-                -srM
-                'flatten | map(@html "<file name=\"\(.source)\">" + (.message as $message | .smell_type as $source | .lines | map(@html "<error source=\"\($source)\" message=\"\($message)\" line=\"\(.)\" column=\"0\" severity=\"warning\" />") | join("")) + "</file>") | "<checkstyle>\(join(""))</checkstyle>"'
-              )
+              FILTER="$(
+              cat \<<-"EOT" | tr -s ' \n' ' '
+              flatten | map(@html "<file name=\"\(.source)\">" + (.message as $message | .smell_type as $source | .lines | map(
+                @html "<error source=\"\($source)\" message=\"\($message)\" line=\"\(.)\" column=\"0\" severity=\"warning\" />") | join("")
+              ) + "</file>") | "<checkstyle>\(join(""))</checkstyle>"
               EOT
+              )"
+              declare -ax TRANSFORMATION_ARGUMENTS=( -srM "$FILTER" )
+              echo "$(declare -p TRANSFORMATION_ARGUMENTS)" >> $BASH_ENV
         - steps: << parameters.prepare >>
       analysis-command: reek
       analysis-arguments: -f json
