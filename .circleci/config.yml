@@ -19,7 +19,7 @@ parameters:
 
 orbs:
   orb-tools: circleci/orb-tools@9.0.1
-  dscar-reek: naokikimura/dscar-reek@<< pipeline.parameters.dev-orb-version >>
+  dscar-reek: moneyforward/dscar-reek@<< pipeline.parameters.dev-orb-version >>
 
 anchors:
   dscar-default-executor: &dscar-default-executor
@@ -46,7 +46,7 @@ workflows:
             - orb-tools/lint
       - orb-tools/publish-dev:
           context: dscar
-          orb-name: naokikimura/dscar-reek
+          orb-name: moneyforward/dscar-reek
           requires:
             - orb-tools/pack
       - orb-tools/trigger-integration-tests-workflow:
