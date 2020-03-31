@@ -32,3 +32,11 @@ process: dist/orb.yml
 .PHONY: create
 create:
 	circleci orb create $(ORB)
+
+.INTERMEDIATE: .circleci/compiled-config.yml
+.circleci/compiled-config.yml: publish
+	circleci config process .circleci/config.yml > $@
+
+.PHONY: integration-test-1
+integration-test-1: .circleci/compiled-config.yml
+	circleci local execute -c $< --job $@
