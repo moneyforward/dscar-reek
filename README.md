@@ -1,5 +1,7 @@
 # dscar-reek
 
+[![CircleCI](https://circleci.com/gh/moneyforward/dscar-reek.svg?style=svg)](https://circleci.com/gh/moneyforward/dscar-reek)
+
 Delta [Reek](https://github.com/troessner/reek) reports running on CircleCI
 
 See https://circleci.com/orbs/registry/orb/moneyforward/dscar-reek for details.
