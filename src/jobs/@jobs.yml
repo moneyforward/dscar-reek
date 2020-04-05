@@ -52,6 +52,10 @@ execute:
       description: Specify the image used to execute analysis
       type: executor
       default: default
+    parallelism:
+      description: If parallelism is set to N > 1, then N independent executors will be set up and each will run the steps of that job in parallel.
+      type: integer
+      default: 1
     resource_class:
       description: Amount of CPU and RAM allocated to each container in a job.
       type: string
@@ -60,13 +64,7 @@ execute:
       description: Specify analysis steps
       type: steps
       default:
-        - analyze:
-            prepare: []
-    calculate:
-      description: Specify the steps for calculating the difference
-      type: steps
-      default:
-        - dscar/calculate
+        - analyze
     test-results-path:
       description: Specify the value of the path parameter in the store_test_results step if you need to change it
       type: string
@@ -80,13 +78,11 @@ execute:
       type: string
       default: ""
   executor: << parameters.executor >>
-  parallelism: 1
+  parallelism: << parameters.parallelism >>
   resource_class: << parameters.resource_class >>
   steps:
-    - install-analyzer
     - dscar/execute-and-evaluate:
         analyze: << parameters.analyze >>
-        calculate: << parameters.calculate >>
         test-results-path: << parameters.test-results-path >>
         vcs-api-token: << parameters.vcs-api-token >>
         circle_compare_url-path: << parameters.circle_compare_url-path >>
