@@ -7,7 +7,7 @@ display:
   source_url: https://github.com/moneyforward/dscar-reek
 
 orbs:
-  dscar: moneyforward/dscar@1.1.0
+  dscar: moneyforward/dscar@1.2
 
 executors:
   default:
