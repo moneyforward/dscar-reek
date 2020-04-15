@@ -13,10 +13,6 @@ analyze:
       description: Amount of CPU and RAM allocated to each container in a job.
       type: string
       default: small
-    is-target-branch-base:
-      description: Check-out the BASE branch if true is specified
-      type: boolean
-      default: false
     analyze:
       description: Specify analysis steps
       type: steps
@@ -39,7 +35,6 @@ analyze:
   resource_class: << parameters.resource_class >>
   steps:
     - dscar/analyze-and-evaluate:
-        is-target-branch-base: << parameters.is-target-branch-base >>
         analyze: << parameters.analyze >>
         test-results-path: << parameters.test-results-path >>
         vcs-api-token: << parameters.vcs-api-token >>
